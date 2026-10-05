@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-Puls | Sport & Kazino</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: #121212; color: #fff; padding-bottom: 20px; }
+        header { background: #1f1f1f; padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00e676; }
+        .logo { font-size: 22px; font-weight: bold; color: #00e676; }
+        .balance-box { background: #2a2a2a; padding: 6px 12px; border-radius: 6px; color: #ffeb3b; font-weight: bold; }
+        .container { max-width: 600px; margin: 20px auto; padding: 0 10px; }
+        .card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        input, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 5px; border: none; }
+        input { background: #2a2a2a; color: #fff; }
+        button { background: #00e676; color: #000; font-weight: bold; cursor: pointer; }
+        button:hover { background: #00c853; }
+        .game-item { background: #2a2a2a; padding: 10px; margin-top: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .odds-btn { background: #333; color: #00e676; width: auto; padding: 5px 10px; margin: 0 2px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">X-PULSTMT</div>
+    <div class="balance-box" id="balanceDisplay">Balans: 0.00 TMT</div>
+</header>
+
+<div class="container">
+    <!-- Auth Section -->
+    <div class="card" id="authCard">
+        <h3>Giriş / Registrasiýa</h3>
+        <input type="text" id="username" placeholder="Ulanyjy ady">
+        <input type="password" id="password" placeholder="Parol">
+        <input type="tel" id="phone" placeholder="+9936XXXXXXX">
+        <button onclick="register()">Registrasiýa</button>
+        <button onclick="login()" style="background:#2196F3; color:#fff;">Giriş Etmek</button>
+    </div>
+
+    <!-- Games Section -->
+    <div class="card">
+        <h3>Günlik Futbol Matchlary</h3>
+        <div id="gamesList">Oýunlar ýüklenýär...</div>
+    </div>
+
+    <!-- Casino Section -->
+    <div class="card">
+        <h3>Kazino Oýny (Slots)</h3>
+        <input type="number" id="casinoBet" placeholder="Stawka mukdary (TMT)">
+        <button onclick="playCasino()" style="background:#e91e63; color:#fff;">Oýnamaq (2x Utuş)</button>
+    </div>
+</div>
+
+<script>
+    // Localhost ýa-da Canly Render Backend URL-i
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? 'http://localhost:3000' 
+        : 'https://xpuls-backend.onrender.com'; // <-- Render URL-iňizi bärde çalşyrasyňyz
+
+    let token = localStorage.getItem('token') || '';
+
+    async function register() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const phone = document.getElementById('phone').value;
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password, phone})
+        });
+        const data = await res.json();
+        alert(data.message);
+    }
+
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        const data = await res.json();
+        if(data.success) {
+            token = data.token;
+            localStorage.setItem('token', token);
+            document.getElementById('balanceDisplay').innerText = `Balans: ${data.balance.toFixed(2)} TMT`;
+            alert('Üstünlikli girildi!');
+        } else {
+            alert(data.message);
+        }
+    }
+
+    async function loadGames() {
+        const res = await fetch(`${API_URL}/api/games/daily`);
+        const data = await res.json();
+        if(data.success) {
+            const list = document.getElementById('gamesList');
+            list.innerHTML = '';
+            data.games.forEach(g => {
+                list.innerHTML += `
+                    <div class="game-item">
+                        <div><b>${g.team1} vs ${g.team2}</b></div>
+                        <div>
+                            <button class="odds-btn" onclick="placeBet(${g.id}, 'P1')">P1 (${g.p1})</button>
+                            <button class="odds-btn" onclick="placeBet(${g.id}, 'PX')">PX (${g.px})</button>
+                            <button class="odds-btn" onclick="placeBet(${g.id}, 'P2')">P2 (${g.p2})</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    async function placeBet(gameId, outcome) {
+        if(!token) return alert('Ilki giriş ediň!');
+        const amount = prompt('Stawka mukdaryny giriziň (TMT):');
+        if(!amount) return;
+
+        const res = await fetch(`${API_URL}/api/bet/place`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': token},
+            body: JSON.stringify({gameId, outcome, amount: parseFloat(amount)})
+        });
+        const data = await res.json();
+        alert(data.message);
+        if(data.success) {
+            document.getElementById('balanceDisplay').innerText = `Balans: ${data.newBalance.toFixed(2)} TMT`;
+        }
+    }
+
+    async function playCasino() {
+        if(!token) return alert('Ilki giriş ediň!');
+        const betAmount = parseFloat(document.getElementById('casinoBet').value);
+        if(!betAmount) return alert('Stawka giriziň!');
+
+        const res = await fetch(`${API_URL}/api/casino/play`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': token},
+            body: JSON.stringify({betAmount})
+        });
+        const data = await res.json();
+        alert(data.message);
+        if(data.success) {
+            document.getElementById('balanceDisplay').innerText = `Balans: ${data.newBalance.toFixed(2)} TMT`;
+        }
+    }
+
+    loadGames();
+</script>
+</body>
+</html>
